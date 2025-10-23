@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use rusty_paseto::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
