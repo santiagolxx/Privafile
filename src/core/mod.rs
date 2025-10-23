@@ -1,14 +1,21 @@
+// src/core/mod.rs
 // ── Internal modules ─────────────────────────────────────────────────
 mod database;
-pub mod procedures;
 mod structs;
 mod utils;
-// ── Export modules ───────────────────────────────────────────
-pub mod utilities {
-    pub use crate::core::database::run_migrations;
-    pub use crate::core::utils::{check_temp_perms, load_config, write_file};
+
+pub mod procedures;
+
+// ── Direct re-exports for easier access ──────────────────────────────
+pub use database::{get_db_manager, init_db_manager, run_migrations};
+pub use structs::{File, NuevoFile, NuevoUsuario, Usuario};
+pub use utils::{Config, check_temp_perms, db_url, http_port, load_config, write_file};
+
+// ── Organized sub-modules (if you prefer) ────────────────────────────
+pub mod database_ops {
+    pub use crate::core::database::operations::{DbManager, get_db_manager, init_db_manager};
 }
-pub mod getters {
-    pub use crate::core::utils::db_url;
-    pub use crate::core::utils::http_port;
+
+pub mod schema {
+    pub use crate::core::database::schema;
 }

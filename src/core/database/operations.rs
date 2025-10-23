@@ -1,5 +1,5 @@
 use crate::core::database::schema::{files, usuarios};
-use crate::core::getters::db_url;
+use crate::core::db_url;
 use crate::core::structs::{File, NuevoFile, NuevoUsuario, Usuario};
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool};

@@ -1,3 +1,3 @@
 mod files;
 
-pub use files::obtener_usuario;
+pub use files::upload_file_route;

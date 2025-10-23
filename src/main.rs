@@ -7,7 +7,7 @@ use tracing_subscriber::EnvFilter;
 
 // Internal crates
 use privafile::{
-    core::utilities::{check_temp_perms, load_config, run_migrations},
+    core::{check_temp_perms, load_config, run_migrations},
     servers::http::start_server,
 };
 

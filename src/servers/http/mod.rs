@@ -2,7 +2,7 @@ use rocket::routes;
 use tracing::info;
 
 // Internal crates
-use crate::core::getters::http_port;
+use crate::core::http_port;
 
 mod routes;
 
@@ -13,5 +13,5 @@ pub fn start_server() -> rocket::Rocket<rocket::Build> {
         .merge(("port", http_port()))
         .merge(("log_level", rocket::config::LogLevel::Critical));
 
-    rocket::custom(figment).mount("/", routes![routes::obtener_usuario])
+    rocket::custom(figment).mount("/", routes![routes::upload_file_route])
 }
