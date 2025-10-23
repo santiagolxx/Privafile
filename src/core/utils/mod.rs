@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use dialoguer::Confirm;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -12,10 +13,35 @@ pub struct Config {
     pub uploads_path: String,
     pub http_port: u16,
     pub database_url: String,
+    pub paseto_keys_path: String,
 }
 
 pub static CONFIG: OnceCell<Config> = OnceCell::new();
 const CHUNK_SIZE: usize = 64 * 1024;
+
+pub async fn create_toml_file() -> anyhow::Result<()> {
+    let base_dir = Path::new("./Privafile");
+    let config_path = base_dir.join("Privafile.toml");
+
+    if !config_path.exists() {
+        let default_config = Config {
+            uploads_path: "./Privafile/Uploads".to_string(),
+            http_port: 5830,
+            database_url: "./Privafile/Privafile.db".to_string(),
+            paseto_keys_path: "./Privafile/paseto.key".to_string(),
+        };
+        let toml_string = toml::to_string_pretty(&default_config)?;
+        fs::write(&config_path, toml_string)
+            .await
+            .expect("No se pudo crear el archivo de configuración por defecto");
+        info!(
+            "Archivo de configuración por defecto creado en {:?}",
+            config_path
+        );
+        info!("Por favor rellena el archivo de configuracion y vuelve a iniciar el servidor :D");
+    }
+    Ok(())
+}
 
 /// Lee ./Privafile/Privafile.toml o crea uno por defecto si no existe.
 /// También asegura que la carpeta ./Privafile exista.
@@ -31,29 +57,44 @@ pub async fn load_config() -> anyhow::Result<()> {
         info!("Directorio base ./Privafile creado");
     }
 
-    // Si no existe el archivo de configuración, crear uno por defecto
-    if !config_path.exists() {
-        let default_config = Config {
-            uploads_path: "./Privafile/Uploads".to_string(),
-            http_port: 5830,
-            database_url: "./Privafile/Privafile.db".to_string(),
-        };
-        let toml_string = toml::to_string_pretty(&default_config)?;
-        fs::write(&config_path, toml_string)
-            .await
-            .expect("No se pudo crear el archivo de configuración por defecto");
-        info!(
-            "Archivo de configuración por defecto creado en {:?}",
-            config_path
-        );
-    }
+    let content = match fs::read_to_string(&config_path).await {
+        Ok(content) => content,
+        Err(e) => {
+            error!("Error al leer Privafile.toml: {}", e);
+            if Confirm::new()
+                .with_prompt("¿Deseas regenerar el archivo de configuración?")
+                .default(true)
+                .interact()
+                .unwrap_or(false)
+            {
+                // Regenerar el archivo
+                std::fs::remove_file(&config_path).ok();
+                create_toml_file().await?;
+                std::process::exit(0);
+            } else {
+                error!("No se puede continuar sin configuración válida.");
+                std::process::exit(1);
+            }
+        }
+    };
 
-    // Leer el archivo (sea nuevo o existente)
-    let content = fs::read_to_string(&config_path)
-        .await
-        .expect("No se pudo leer Privafile.toml");
-    let config: Config =
-        toml::from_str(&content).expect("Error al parsear el archivo de configuración TOML");
+    // Parsear el contenido
+    let config: Config = toml::from_str(&content).unwrap_or_else(|e| {
+        error!("Error al parsear Privafile.toml: {}", e);
+        if Confirm::new()
+            .with_prompt("El archivo está corrupto. ¿Deseas regenerarlo?")
+            .default(true)
+            .interact()
+            .unwrap_or(false)
+        {
+            std::fs::remove_file(&config_path).ok();
+            info!("Archivo eliminado. Reinicia la aplicación.");
+            std::process::exit(0);
+        } else {
+            error!("No se puede continuar sin configuración válida.");
+            std::process::exit(1);
+        }
+    });
 
     CONFIG
         .set(config)
@@ -74,13 +115,10 @@ pub async fn check_temp_perms() -> anyhow::Result<()> {
 
     // Crear el directorio si no existe
     if !path.exists() {
-        fs::create_dir_all(&path).await.unwrap_or_else(|e| {
-            panic!(
-                "No se pudo crear el directorio temporal {:?}: {:?}",
-                path, e
-            )
-        });
-        info!("Directorio temporal creado en {:?}", path);
+        fs::create_dir_all(&path)
+            .await
+            .unwrap_or_else(|e| panic!("No se pudo crear el directorio {:?}: {:?}", path, e));
+        info!("Directorio creado en {:?}", path);
     }
 
     // Verificar permisos
@@ -116,11 +154,20 @@ pub fn db_url() -> String {
         .get()
         .map(|c| c.database_url.clone())
         .unwrap_or_else(|| {
-            error!("Se intentó obtener la url de la base de datos del servidor, pero CONFIG no está inicializado. Usando default (5830)");
+            error!("Se intentó obtener la url de la base de datos del servidor, pero CONFIG no está inicializado. Usando default");
             "./Privafile/Privafile.sql".to_string()
         })
 }
 
+pub fn paseto_keys_path() -> String {
+    CONFIG
+        .get()
+        .map(|c| c.paseto_keys_path.clone())
+        .unwrap_or_else(|| {
+            error!("Se intentó obtener la clave de paseto del servidor, pero este no existe . Usando default");
+            "./Privafile/Paseto_privafile.key".to_string()
+        })
+}
 pub async fn write_file(path: impl AsRef<Path>, datos: &[u8]) -> Result<()> {
     let mut archivo = File::create(&path)
         .await
