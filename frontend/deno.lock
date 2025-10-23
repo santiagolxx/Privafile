@@ -6,9 +6,11 @@
     "npm:@vitejs/plugin-vue@^6.0.1": "6.0.1_vite@7.1.12__@types+node@24.9.1__picomatch@4.0.3_vue@3.5.22__typescript@5.9.3_@types+node@24.9.1_typescript@5.9.3",
     "npm:@vue/tsconfig@~0.8.1": "0.8.1_typescript@5.9.3_vue@3.5.22__typescript@5.9.3",
     "npm:lucide-vue-next@0.546": "0.546.0_vue@3.5.22__typescript@5.9.3_typescript@5.9.3",
+    "npm:media-icons@^1.1.5": "1.1.5",
     "npm:rolldown-vite@7.1.14": "7.1.14_@types+node@24.9.1_picomatch@4.0.3",
     "npm:tailwindcss@^4.1.16": "4.1.16",
     "npm:typescript@~5.9.3": "5.9.3",
+    "npm:vidstack@^1.12.13": "1.12.13",
     "npm:vue-tsc@^3.1.0": "3.1.1_typescript@5.9.3",
     "npm:vue@^3.5.22": "3.5.22_typescript@5.9.3"
   },
@@ -181,6 +183,22 @@
       "integrity": "sha512-D7Hpz6A2L4hzsRpPaCYkQnGOotdUpDzSGRIv9I+1ITdHROSFUWW95ZPZWQmGka1Fg7W3zFJowyn9WGwMJ0+KPA==",
       "os": ["win32"],
       "cpu": ["x64"]
+    },
+    "@floating-ui/core@1.7.3": {
+      "integrity": "sha512-sGnvb5dmrJaKEZ+LDIpguvdX3bDlEllmv4/ClQ9awcmCZrlx5jQyyMWFM5kBI+EyNOCDDiKk8il0zeuX3Zlg/w==",
+      "dependencies": [
+        "@floating-ui/utils"
+      ]
+    },
+    "@floating-ui/dom@1.7.4": {
+      "integrity": "sha512-OOchDgh4F2CchOX94cRVqhvy7b3AFb+/rQXyswmzmGakRfkMgoWVjfnLWkRirfLEfuD4ysVW16eXzwt3jHIzKA==",
+      "dependencies": [
+        "@floating-ui/core",
+        "@floating-ui/utils"
+      ]
+    },
+    "@floating-ui/utils@0.2.10": {
+      "integrity": "sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ=="
     },
     "@jridgewell/gen-mapping@0.3.13": {
       "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
@@ -523,6 +541,9 @@
         "undici-types"
       ]
     },
+    "@types/trusted-types@2.0.7": {
+      "integrity": "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="
+    },
     "@vitejs/plugin-vue@6.0.1_vite@7.1.12__@types+node@24.9.1__picomatch@4.0.3_vue@3.5.22__typescript@5.9.3_@types+node@24.9.1_typescript@5.9.3": {
       "integrity": "sha512-+MaE752hU0wfPFJEUAIxqw18+20euHHdxVtMvbFcOEpjEyfqXH/5DCoTHiVJ0J29EhTJdoTkjEv5YBKU9dnoTw==",
       "dependencies": [
@@ -645,6 +666,10 @@
         "typescript",
         "vue"
       ]
+    },
+    "acorn@8.15.0": {
+      "integrity": "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==",
+      "bin": true
     },
     "alien-signals@3.0.3": {
       "integrity": "sha512-2JXjom6R7ZwrISpUphLhf4htUq1aKRCennTJ6u9kFfr3sLmC9+I4CxxVi+McoFnIg+p1HnVrfLT/iCt4Dlz//Q=="
@@ -799,6 +824,12 @@
         "lightningcss-win32-x64-msvc"
       ]
     },
+    "lit-html@2.8.0": {
+      "integrity": "sha512-o9t+MQM3P4y7M7yNzqAyjp7z+mQGa4NS4CxiyLqFPyFWyc4O+nodLrkrxSaCTrla6M5YOLaT3RpbbqjszB5g3Q==",
+      "dependencies": [
+        "@types/trusted-types"
+      ]
+    },
     "lucide-vue-next@0.546.0_vue@3.5.22__typescript@5.9.3_typescript@5.9.3": {
       "integrity": "sha512-Ra4lNbm0m9uSb82ZBMCUg3c2xQ4qaU9b87fAFvFPoLC0/u7JxG5FJjhUFqfNfofk1xdZiDpF6EnCbaxTHXzLcw==",
       "dependencies": [
@@ -810,6 +841,12 @@
       "dependencies": [
         "@jridgewell/sourcemap-codec"
       ]
+    },
+    "media-captions@1.0.4": {
+      "integrity": "sha512-cyDNmuZvvO4H27rcBq2Eudxo9IZRDCOX/I7VEyqbxsEiD2Ei7UYUhG/Sc5fvMZjmathgz3fEK7iAKqvpY+Ux1w=="
+    },
+    "media-icons@1.1.5": {
+      "integrity": "sha512-zu3CjKRs63ybLLWPomRRgTDyYiSrk2bRRgw97ZmN3FGXuo9qUUhBSfYwnjmvSdLG2JOJfAwzDz99bPATSY81DQ=="
     },
     "muggle-string@0.4.1": {
       "integrity": "sha512-VNTrAak/KhO2i8dqqnqnAHOa3cYBwXEZe9h+D5h/1ZqFSTEFHdM65lR7RoIqq3tBBYavsOXV84NoHXZ0AkPyqQ=="
@@ -938,6 +975,22 @@
     "undici-types@7.16.0": {
       "integrity": "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="
     },
+    "unplugin@1.16.1": {
+      "integrity": "sha512-4/u/j4FrCKdi17jaxuJA0jClGxB1AvU2hw/IuayPc4ay1XGaJs/rbb4v5WKwAjNifjmXK9PIFyuPiaK8azyR9w==",
+      "dependencies": [
+        "acorn",
+        "webpack-virtual-modules"
+      ]
+    },
+    "vidstack@1.12.13": {
+      "integrity": "sha512-vuNeyRmWoH/7EoFVDYjp9nkgcqtCMmal518LDeb78dYKgWb+p6+vtY0AzDhrkBv5q1UiCn+xwmjMmwvSlPLuhQ==",
+      "dependencies": [
+        "@floating-ui/dom",
+        "lit-html",
+        "media-captions",
+        "unplugin"
+      ]
+    },
     "vite@7.1.12_@types+node@24.9.1_picomatch@4.0.3": {
       "integrity": "sha512-ZWyE8YXEXqJrrSLvYgrRP7p62OziLW7xI5HYGWFzOvupfAlrLvURSzv/FyGyy0eidogEM3ujU+kUG1zuHgb6Ug==",
       "dependencies": [
@@ -982,6 +1035,9 @@
       "optionalPeers": [
         "typescript"
       ]
+    },
+    "webpack-virtual-modules@0.6.2": {
+      "integrity": "sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ=="
     }
   },
   "workspace": {
@@ -992,9 +1048,11 @@
         "npm:@vitejs/plugin-vue@^6.0.1",
         "npm:@vue/tsconfig@~0.8.1",
         "npm:lucide-vue-next@0.546",
+        "npm:media-icons@^1.1.5",
         "npm:rolldown-vite@7.1.14",
         "npm:tailwindcss@^4.1.16",
         "npm:typescript@~5.9.3",
+        "npm:vidstack@^1.12.13",
         "npm:vue-tsc@^3.1.0",
         "npm:vue@^3.5.22"
       ]
