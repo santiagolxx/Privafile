@@ -1,10 +1,10 @@
 // src/core/mod.rs
 // ── Internal modules ─────────────────────────────────────────────────
+mod cryptography;
 mod database;
+pub mod procedures;
 mod structs;
 mod utils;
-
-pub mod procedures;
 
 // ── Direct re-exports for easier access ──────────────────────────────
 pub use database::{get_db_manager, init_db_manager, run_migrations};
