@@ -1,3 +1,5 @@
+pub mod operations;
+pub mod schema;
 use crate::core::utils::db_url;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
@@ -14,3 +16,5 @@ pub fn run_migrations() {
         .expect("Error aplicando migraciones");
     info!("DB lista y migraciones aplicadas");
 }
+
+pub use operations::{get_db_manager, init_db_manager};

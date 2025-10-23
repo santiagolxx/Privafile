@@ -14,7 +14,7 @@ fn obtener_usuario(id: u32) -> String {
 }
 
 pub fn start_server() -> rocket::Rocket<rocket::Build> {
-    info!("Iniciando servidor Privafile en {}", http_port());
+    info!("Iniciando servidor Privafile en el puerto {}", http_port());
 
     let figment = rocket::Config::figment()
         .merge(("port", http_port()))

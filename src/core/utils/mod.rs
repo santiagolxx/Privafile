@@ -1,9 +1,12 @@
+use anyhow::{Context, Result};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use tokio::fs;
+use tokio::{
+    fs::{self, File},
+    io::AsyncWriteExt,
+};
 use tracing::{error, info};
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub uploads_path: String,
@@ -12,6 +15,7 @@ pub struct Config {
 }
 
 pub static CONFIG: OnceCell<Config> = OnceCell::new();
+const CHUNK_SIZE: usize = 64 * 1024;
 
 /// Lee ./Privafile/Privafile.toml o crea uno por defecto si no existe.
 /// También asegura que la carpeta ./Privafile exista.
@@ -115,4 +119,20 @@ pub fn db_url() -> String {
             error!("Se intentó obtener la url de la base de datos del servidor, pero CONFIG no está inicializado. Usando default (5830)");
             "./Privafile/Privafile.sql".to_string()
         })
+}
+
+pub async fn write_file(path: impl AsRef<Path>, datos: &[u8]) -> Result<()> {
+    let mut archivo = File::create(&path)
+        .await
+        .with_context(|| format!("No se pudo crear el archivo {:?}", path.as_ref()))?;
+
+    let mut offset = 0;
+    while offset < datos.len() {
+        let end = (offset + CHUNK_SIZE).min(datos.len());
+        archivo.write_all(&datos[offset..end]).await?;
+        offset = end;
+    }
+
+    archivo.flush().await?;
+    Ok(())
 }
