@@ -1,6 +1,6 @@
 // ── Internal modules ─────────────────────────────────────────────────
 mod database;
-mod procedures;
+pub mod procedures;
 mod structs;
 mod utils;
 // ── Export modules ───────────────────────────────────────────

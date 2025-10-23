@@ -1,9 +1,15 @@
+use anyhow;
+
+// External crates
+use tokio;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
+
+// Internal crates
 use privafile::{
     core::utilities::{check_temp_perms, load_config, run_migrations},
     servers::http::start_server,
 };
-use tracing::info;
-use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
