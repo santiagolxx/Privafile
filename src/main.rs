@@ -1,4 +1,7 @@
-use privafile::{check_temp_perms, load_config, start_server};
+use privafile::{
+    core::utilities::{check_temp_perms, load_config, run_migrations},
+    servers::http::start_server,
+};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -11,9 +14,8 @@ async fn main() -> anyhow::Result<()> {
     info!("Leyendo configuración y ejecutando checks de permisos...");
 
     load_config().await?;
-
     check_temp_perms().await?;
-
+    run_migrations();
     info!("Iniciando servidor...");
     start_server().launch().await?;
 

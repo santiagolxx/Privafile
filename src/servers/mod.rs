@@ -1,3 +1,1 @@
-mod http;
-
-pub use http::start_server;
+pub mod http;

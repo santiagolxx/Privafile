@@ -32,7 +32,7 @@ pub async fn load_config() -> anyhow::Result<()> {
         let default_config = Config {
             uploads_path: "./Privafile/Uploads".to_string(),
             http_port: 5830,
-            database_url: "Privafile.db".to_string(),
+            database_url: "./Privafile/Privafile.db".to_string(),
         };
         let toml_string = toml::to_string_pretty(&default_config)?;
         fs::write(&config_path, toml_string)
@@ -104,5 +104,15 @@ pub fn http_port() -> u16 {
         .unwrap_or_else(|| {
             error!("Se intentó obtener el puerto del servidor, pero CONFIG no está inicializado. Usando default (5830)");
             5830
+        })
+}
+
+pub fn db_url() -> String {
+    CONFIG
+        .get()
+        .map(|c| c.database_url.clone())
+        .unwrap_or_else(|| {
+            error!("Se intentó obtener la url de la base de datos del servidor, pero CONFIG no está inicializado. Usando default (5830)");
+            "./Privafile/Privafile.sql".to_string()
         })
 }
