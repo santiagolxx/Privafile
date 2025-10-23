@@ -1,3 +1,3 @@
 mod files;
 
-pub use files::upload_file_route;
+pub use files::{delete_file_route, download_file_route, list_files_route, upload_file_route};
