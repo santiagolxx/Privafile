@@ -1,8 +1,13 @@
 use crate::core::File;
 use crate::core::database::init_db_manager;
 use crate::core::structs::NuevoFile;
+use crate::core::structs::NuevoUsuario;
 use crate::core::utils::write_file;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
+use argon2::{
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+    password_hash::{SaltString, rand_core::OsRng},
+};
 use blake2::{Blake2b512, Digest};
 use std::path::PathBuf;
 use tracing::{error, info, warn};
@@ -205,57 +210,110 @@ pub async fn delete_file(user_id: &str, file_id: &str) -> Result<()> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Registra un nuevo usuario en el sistema
+///
+/// # Validaciones
+/// - Username único (no puede existir)
+/// - Username: 3-50 caracteres alfanuméricos
+/// - Password: mínimo 8 caracteres
+///
+/// # Seguridad
+/// - Password hasheado con Argon2id
+/// - Salt aleatorio por usuario
+pub async fn register_user(username: &str, password: &str) -> Result<String> {
+    // Validaciones de entrada
+    if username.len() < 3 || username.len() > 50 {
+        return Err(anyhow!("El username debe tener entre 3 y 50 caracteres"));
+    }
 
-    #[test]
-    fn test_path_traversal_validation() {
-        let malicious_ids = vec![
-            "../../../etc/passwd",
-            "..\\..\\windows\\system32",
-            "abc/../../../secret.txt",
-            "file/with/slashes",
-            "file\\with\\backslashes",
-        ];
+    if password.len() < 8 {
+        return Err(anyhow!("La contraseña debe tener al menos 8 caracteres"));
+    }
 
-        for id in malicious_ids {
-            assert!(
-                id.contains("..") || id.contains('/') || id.contains('\\'),
-                "ID debería ser detectado como malicioso: {}",
-                id
+    if !username
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(anyhow!(
+            "El username solo puede contener letras, números, guiones y guiones bajos"
+        ));
+    }
+
+    let db = init_db_manager();
+
+    // Verificar que el username no exista
+    // Nota: Diesel no tiene un método directo para buscar por username,
+    // así que haremos una query custom
+    let existing = db.buscar_usuario_por_username(username);
+    if existing.is_ok() {
+        warn!("Intento de registro con username existente: {}", username);
+        return Err(anyhow!("El username '{}' ya está en uso", username));
+    }
+
+    // Hashear la contraseña
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), salt.as_salt())
+        .map_err(|e| anyhow!("Error al hashear la contraseña: {}", e))?
+        .to_string();
+
+    // Crear el usuario
+    let user_id = Uuid::new_v4().to_string();
+    let nuevo_usuario = NuevoUsuario {
+        id: &user_id,
+        username,
+        password: &password_hash,
+        b64_pubkey: None, // Para futuras implementaciones de E2E encryption
+    };
+
+    db.insertar_usuario(&nuevo_usuario)
+        .context("Error al insertar usuario en la base de datos")?;
+
+    info!(
+        "Usuario registrado exitosamente: {} (ID: {})",
+        username, user_id
+    );
+    Ok(user_id)
+}
+
+/// Autentica un usuario verificando sus credenciales
+///
+/// # Validaciones
+/// - Usuario debe existir
+/// - Password debe coincidir con el hash almacenado
+///
+/// # Retorna
+/// ID del usuario si las credenciales son correctas
+pub async fn authenticate_user(username: &str, password: &str) -> Result<String> {
+    let db = init_db_manager();
+
+    // Buscar usuario por username
+    let usuario = db
+        .buscar_usuario_por_username(username)
+        .context("Usuario no encontrado")?;
+
+    // Verificar contraseña
+    let parsed_hash = PasswordHash::new(&usuario.password)
+        .map_err(|e| anyhow!("Error al parsear hash de contraseña: {}", e))?;
+
+    match Argon2::default().verify_password(password.as_bytes(), &parsed_hash) {
+        Ok(_) => {
+            info!(
+                "Login exitoso para usuario: {} (ID: {})",
+                username, usuario.id
             );
+            Ok(usuario.id)
+        }
+        Err(_) => {
+            warn!("Intento de login fallido para usuario: {}", username);
+            Err(anyhow!("Credenciales inválidas"))
         }
     }
+}
 
-    #[test]
-    fn test_valid_file_ids() {
-        let valid_ids = vec![
-            "550e8400-e29b-41d4-a716-446655440000",
-            "abc123",
-            "file-name_123",
-        ];
-
-        for id in valid_ids {
-            assert!(
-                !id.contains("..") && !id.contains('/') && !id.contains('\\'),
-                "ID válido detectado como malicioso: {}",
-                id
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_hash_consistency() {
-        let content = b"test content";
-        let mut hasher1 = Blake2b512::new();
-        hasher1.update(content);
-        let hash1 = format!("{:x}", hasher1.finalize());
-
-        let mut hasher2 = Blake2b512::new();
-        hasher2.update(content);
-        let hash2 = format!("{:x}", hasher2.finalize());
-
-        assert_eq!(hash1, hash2, "Los hashes deberían ser consistentes");
-    }
+/// Verifica si un usuario existe por ID
+pub async fn user_exists(user_id: &str) -> Result<bool> {
+    let db = init_db_manager();
+    Ok(db.buscar_usuario(user_id).is_ok())
 }

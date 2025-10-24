@@ -40,7 +40,9 @@ pub fn start_server() -> rocket::Rocket<rocket::Build> {
                 routes::upload_file_route,
                 routes::list_files_route,
                 routes::download_file_route,
-                routes::delete_file_route
+                routes::delete_file_route,
+                routes::login,
+                routes::register,
             ],
         )
         .attach(cors)

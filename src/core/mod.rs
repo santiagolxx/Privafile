@@ -3,7 +3,7 @@
 pub(crate) mod cryptography;
 mod database;
 pub mod procedures;
-mod structs;
+pub mod structs;
 mod utils;
 
 // ── Direct re-exports for easier access ──────────────────────────────

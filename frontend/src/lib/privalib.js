@@ -92,6 +92,15 @@ class DriveAPI {
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
     return (bytes / (1024 * 1024)).toFixed(2) + " MB";
   }
+  static async login(username, password) {
+    const response = await fetch(base_url);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || `Error ${response.status}`);
+    }
+    localStorage.setItem("token", data.token);
+  }
 }
 
 export const driveAPI = new DriveAPI();

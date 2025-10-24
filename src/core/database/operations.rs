@@ -35,7 +35,13 @@ impl DbManager {
         let mut conn = self.get_conn();
         usuarios::table.find(user_id).first(&mut conn)
     }
-
+    pub fn buscar_usuario_por_username(
+        &self,
+        user_name: &str,
+    ) -> Result<Usuario, diesel::result::Error> {
+        let mut conn = self.get_conn();
+        usuarios::table.find(user_name).first(&mut conn)
+    }
     pub fn borrar_usuario(&self, user_id: &str) -> Result<usize, diesel::result::Error> {
         let mut conn = self.get_conn();
         diesel::delete(usuarios::table.find(user_id)).execute(&mut conn)

@@ -3,44 +3,13 @@ use rocket::outcome::Outcome;
 use rocket::request::{self, FromRequest, Request};
 use rocket::serde::json::Json;
 use rocket::{Data, State, delete, get, http::Status, post, response::status::Custom};
-use serde::{Deserialize, Serialize};
 use tracing::{Level, error, info, span, warn};
 
 use crate::core::File;
 use crate::core::cryptography::authentication::PasetoManager;
 use crate::core::init_db_manager;
 use crate::core::procedures::{delete_file, download_file, list_user_files, upload_file};
-
-// ============================================================================
-// Response Types
-// ============================================================================
-
-#[derive(Serialize)]
-pub struct UploadResponse {
-    pub success: bool,
-    pub message: String,
-    pub file_id: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct FileListResponse {
-    pub success: bool,
-    pub message: String,
-    pub files: Vec<FileInfo>,
-}
-
-#[derive(Serialize)]
-pub struct DeleteResponse {
-    pub success: bool,
-    pub message: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct FileInfo {
-    pub id: String,
-    pub mime: String,
-    pub hash: String,
-}
+use crate::core::structs::{DeleteResponse, FileInfo, FileListResponse, UploadResponse};
 
 impl From<File> for FileInfo {
     fn from(file: File) -> Self {
