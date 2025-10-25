@@ -1,13 +1,10 @@
 use anyhow;
-
-// External crates
 use tokio;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
-// Internal crates
 use privafile::{
-    core::{check_temp_perms, load_config, run_migrations},
+    core::{check_temp_perms, init_db_manager, load_config, run_migrations},
     servers::http::start_server,
 };
 
@@ -17,12 +14,17 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(EnvFilter::new("info,rocket=off,hyper=off,tokio=off"))
         .init();
 
-    info!("Leyendo configuración y ejecutando checks de permisos...");
+    info!("🚀 Iniciando Privafile...");
+    info!("📁 Leyendo configuración y ejecutando checks de permisos...");
 
     load_config().await?;
     check_temp_perms().await?;
+
+    info!("🗄️  Ejecutando migraciones de base de datos...");
     run_migrations();
-    info!("Iniciando servidor...");
+    init_db_manager();
+
+    info!("🌐 Iniciando servidor HTTP...");
     start_server().launch().await?;
 
     Ok(())

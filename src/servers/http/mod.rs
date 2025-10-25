@@ -1,22 +1,24 @@
 use rocket::routes;
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use tracing::info;
-// Internal crates
+
 use crate::core::{cryptography::authentication::PasetoManager, http_port, paseto_keys_path};
+
 mod routes;
 
 pub fn start_server() -> rocket::Rocket<rocket::Build> {
     let paseto_manager =
         PasetoManager::from_file(paseto_keys_path()).expect("Failed to initialize PasetoManager");
-    info!("{:#?}", paseto_manager.create_token("1", 1));
+
     info!("PasetoManager inicializado correctamente");
     info!("Iniciando servidor Privafile en el puerto {}", http_port());
 
     let figment = rocket::Config::figment()
         .merge(("port", http_port()))
         .merge(("log_level", rocket::config::LogLevel::Critical));
+
     let cors = CorsOptions {
-        allowed_origins: AllowedOrigins::all(), // Para desarrollo
+        allowed_origins: AllowedOrigins::all(),
         allowed_methods: vec![
             rocket::http::Method::Get,
             rocket::http::Method::Post,
@@ -32,14 +34,18 @@ pub fn start_server() -> rocket::Rocket<rocket::Build> {
     }
     .to_cors()
     .expect("Error al crear CORS");
+
     rocket::custom(figment)
         .manage(paseto_manager)
         .mount(
             "/",
             routes![
-                routes::upload_file_route,
+                routes::init_upload_route,
+                routes::upload_chunk_route,
+                routes::finalize_upload_route,
                 routes::list_files_route,
                 routes::download_file_route,
+                routes::download_chunk_route,
                 routes::delete_file_route,
                 routes::login,
                 routes::register,

@@ -3,29 +3,23 @@ use rocket::outcome::Outcome;
 use rocket::request::{self, FromRequest, Request};
 use rocket::serde::json::Json;
 use rocket::{Data, State, delete, get, http::Status, post, response::status::Custom};
+use serde_json::json;
 use tracing::{Level, error, info, span, warn};
 
-use crate::core::File;
 use crate::core::cryptography::authentication::PasetoManager;
-use crate::core::init_db_manager;
-use crate::core::procedures::{delete_file, download_file, list_user_files, upload_file};
-use crate::core::structs::{DeleteResponse, FileInfo, FileListResponse, UploadResponse};
-
-impl From<File> for FileInfo {
-    fn from(file: File) -> Self {
-        FileInfo {
-            id: file.id,
-            mime: file.mime,
-            hash: file.hash,
-        }
-    }
-}
+use crate::core::procedures::{
+    delete_file, download_chunk, download_file, finalize_chunked_upload, init_chunked_upload,
+    list_user_files, upload_chunk,
+};
+use crate::core::structs::{
+    ChunkUploadResponse, DeleteResponse, File, FileInfo, FileListResponse, FinalizeUploadRequest,
+    FinalizeUploadResponse, InitUploadRequest, InitUploadResponse,
+};
 
 // ============================================================================
 // Authentication Guard
 // ============================================================================
 
-/// Guard para extraer y validar el token PASETO del header Authorization
 pub struct AuthenticatedUser {
     pub user_id: String,
 }
@@ -76,131 +70,160 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
     }
 }
 
-// ============================================================================
-// Routes
-// ============================================================================
-
-/// Ruta para subir archivos con autenticación PASETO
-///
-/// Endpoint: POST /api/files/upload?mime=application/pdf
-///
-/// Headers:
-/// ```
-/// Content-Type: application/octet-stream
-/// Authorization: Bearer <paseto-token>
-/// ```
-///
-/// Body: archivo binario raw
-#[post("/api/files/upload?<mime>", data = "<data>")]
-pub async fn upload_file_route(
-    user: AuthenticatedUser,
-    mime: String,
-    data: Data<'_>,
-) -> Result<Json<UploadResponse>, Custom<Json<UploadResponse>>> {
-    let span = span!(Level::INFO, "upload_file_route");
-    let _enter = span.enter();
-
-    // Validar mime type
-    if mime.is_empty() || !mime.contains('/') || mime.len() > 100 {
-        error!("mime type inválido: {}", mime);
-        return Err(Custom(
-            Status::BadRequest,
-            Json(UploadResponse {
-                success: false,
-                message: "El mime type es inválido".to_string(),
-                file_id: None,
-            }),
-        ));
-    }
-
-    // Verificar que el usuario exista
-    let db = init_db_manager();
-    if db.buscar_usuario(&user.user_id).is_err() {
-        error!("Usuario no encontrado: {}", user.user_id);
-        return Err(Custom(
-            Status::NotFound,
-            Json(UploadResponse {
-                success: false,
-                message: format!("Usuario '{}' no encontrado", user.user_id),
-                file_id: None,
-            }),
-        ));
-    }
-
-    // Leer el archivo (límite de 100 MiB)
-    let mut stream = data.open(ToByteUnit::mebibytes(100));
-    let mut file_content = Vec::new();
-
-    if let Err(e) = tokio::io::AsyncReadExt::read_to_end(&mut stream, &mut file_content).await {
-        error!("Error al leer datos del request: {}", e);
-        return Err(Custom(
-            Status::BadRequest,
-            Json(UploadResponse {
-                success: false,
-                message: format!("Error al leer datos del archivo: {}", e),
-                file_id: None,
-            }),
-        ));
-    }
-
-    if file_content.is_empty() {
-        error!("Archivo vacío");
-        return Err(Custom(
-            Status::BadRequest,
-            Json(UploadResponse {
-                success: false,
-                message: "El archivo no puede estar vacío".to_string(),
-                file_id: None,
-            }),
-        ));
-    }
-
-    // Usar el procedure para subir el archivo
-    match upload_file(&user.user_id, &mime, file_content).await {
-        Ok(file_id) => {
-            info!("Archivo subido exitosamente: {}", file_id);
-            Ok(Json(UploadResponse {
-                success: true,
-                message: "Archivo subido exitosamente".to_string(),
-                file_id: Some(file_id),
-            }))
-        }
-        Err(e) => {
-            error!("Error al subir archivo: {}", e);
-            Err(Custom(
-                Status::InternalServerError,
-                Json(UploadResponse {
-                    success: false,
-                    message: format!("Error al subir archivo: {}", e),
-                    file_id: None,
-                }),
-            ))
+impl From<File> for FileInfo {
+    fn from(file: File) -> Self {
+        FileInfo {
+            id: file.id,
+            mime: file.mime,
+            hash: file.hash,
+            status: file.status,
+            total_size: file.total_size,
+            created_at: file.created_at,
         }
     }
 }
 
-/// Ruta para listar los archivos del usuario autenticado
-///
-/// Endpoint: GET /api/files/list?mime=<optional>&limit=<optional>
-///
-/// Headers:
-/// ```
-/// Authorization: Bearer <paseto-token>
-/// ```
-///
-/// Query params (opcionales):
-/// - mime: Filtrar por tipo MIME (ej: "application/pdf")
-/// - limit: Límite de resultados (1-1000)
+// ============================================================================
+// Chunked Upload Routes
+// ============================================================================
+
+/// Inicia un upload fragmentado
+#[post("/api/files/upload/init", data = "<request>")]
+pub async fn init_upload_route(
+    user: AuthenticatedUser,
+    request: Json<InitUploadRequest>,
+) -> Result<Json<InitUploadResponse>, Custom<String>> {
+    let span = span!(Level::INFO, "init_upload");
+    let _enter = span.enter();
+
+    let req = request.into_inner();
+
+    // Validaciones
+    if req.total_chunks <= 0 {
+        return Err(Custom(
+            Status::BadRequest,
+            "El número de chunks debe ser positivo".to_string(),
+        ));
+    }
+
+    if req.mime.is_empty() || !req.mime.contains('/') {
+        return Err(Custom(Status::BadRequest, "MIME type inválido".to_string()));
+    }
+
+    match init_chunked_upload(&user.user_id, &req.file_id, &req.mime, req.total_size).await {
+        Ok(_) => {
+            info!(
+                "Upload iniciado: {} ({} chunks)",
+                req.file_id, req.total_chunks
+            );
+            Ok(Json(InitUploadResponse {
+                success: true,
+                message: "Upload iniciado exitosamente".to_string(),
+                file_id: req.file_id,
+            }))
+        }
+        Err(e) => {
+            error!("Error al iniciar upload: {}", e);
+            Err(Custom(Status::InternalServerError, e.to_string()))
+        }
+    }
+}
+
+/// Sube un chunk individual
+#[post("/api/files/upload/chunk?<file_id>&<chunk_index>", data = "<data>")]
+pub async fn upload_chunk_route(
+    user: AuthenticatedUser,
+    file_id: String,
+    chunk_index: i32,
+    data: Data<'_>,
+) -> Result<Json<ChunkUploadResponse>, Custom<String>> {
+    let span = span!(Level::INFO, "upload_chunk");
+    let _enter = span.enter();
+
+    // Validar chunk_index
+    if chunk_index < 0 {
+        return Err(Custom(
+            Status::BadRequest,
+            "El índice de chunk debe ser positivo".to_string(),
+        ));
+    }
+
+    // Leer datos del chunk (máximo 10 MiB)
+    let mut stream = data.open(ToByteUnit::mebibytes(10));
+    let mut chunk_data = Vec::new();
+
+    if let Err(e) = tokio::io::AsyncReadExt::read_to_end(&mut stream, &mut chunk_data).await {
+        error!("Error al leer chunk: {}", e);
+        return Err(Custom(Status::BadRequest, e.to_string()));
+    }
+
+    if chunk_data.is_empty() {
+        return Err(Custom(
+            Status::BadRequest,
+            "El chunk no puede estar vacío".to_string(),
+        ));
+    }
+
+    match upload_chunk(&user.user_id, &file_id, chunk_index, chunk_data).await {
+        Ok(hash) => {
+            info!("Chunk {} subido exitosamente", chunk_index);
+            Ok(Json(ChunkUploadResponse {
+                success: true,
+                message: format!("Chunk {} subido exitosamente", chunk_index),
+                chunk_index,
+                hash,
+            }))
+        }
+        Err(e) => {
+            error!("Error al subir chunk {}: {}", chunk_index, e);
+            Err(Custom(Status::InternalServerError, e.to_string()))
+        }
+    }
+}
+
+/// Finaliza el upload
+#[post("/api/files/upload/finalize", data = "<request>")]
+pub async fn finalize_upload_route(
+    user: AuthenticatedUser,
+    request: Json<FinalizeUploadRequest>,
+) -> Result<Json<FinalizeUploadResponse>, Custom<String>> {
+    let span = span!(Level::INFO, "finalize_upload");
+    let _enter = span.enter();
+
+    let file_id = &request.file_id;
+
+    match finalize_chunked_upload(&user.user_id, file_id).await {
+        Ok((hash, total_chunks)) => {
+            info!("Upload finalizado: {} ({} chunks)", file_id, total_chunks);
+            Ok(Json(FinalizeUploadResponse {
+                success: true,
+                message: "Upload completado exitosamente".to_string(),
+                file_id: file_id.clone(),
+                total_chunks,
+                hash,
+            }))
+        }
+        Err(e) => {
+            error!("Error al finalizar upload: {}", e);
+            Err(Custom(Status::InternalServerError, e.to_string()))
+        }
+    }
+}
+
+// ============================================================================
+// Download Routes
+// ============================================================================
+
+/// Lista archivos del usuario
 #[get("/api/files/list?<mime>&<limit>")]
 pub async fn list_files_route(
     user: AuthenticatedUser,
     mime: Option<String>,
     limit: Option<i64>,
 ) -> Result<Json<FileListResponse>, Custom<Json<FileListResponse>>> {
-    let span = span!(Level::INFO, "list_files_route");
+    let span = span!(Level::INFO, "list_files");
     let _enter = span.enter();
 
-    // Validar límite si se proporciona
     if let Some(lim) = limit {
         if lim <= 0 || lim > 1000 {
             return Err(Custom(
@@ -214,7 +237,6 @@ pub async fn list_files_route(
         }
     }
 
-    // Usar el procedure para listar archivos
     match list_user_files(&user.user_id, mime.as_deref(), limit).await {
         Ok(files) => {
             let file_count = files.len();
@@ -227,12 +249,12 @@ pub async fn list_files_route(
             }))
         }
         Err(e) => {
-            error!("Error al obtener archivos: {}", e);
+            error!("Error al listar archivos: {}", e);
             Err(Custom(
                 Status::InternalServerError,
                 Json(FileListResponse {
                     success: false,
-                    message: format!("Error al obtener archivos: {}", e),
+                    message: e.to_string(),
                     files: vec![],
                 }),
             ))
@@ -240,25 +262,15 @@ pub async fn list_files_route(
     }
 }
 
-/// Ruta para descargar un archivo específico
-///
-/// Endpoint: GET /api/files/download/<file_id>
-///
-/// Headers:
-/// ```
-/// Authorization: Bearer <paseto-token>
-/// ```
-///
-/// Response: El archivo binario con headers apropiados
+/// Descarga un archivo completo
 #[get("/api/files/download/<file_id>")]
 pub async fn download_file_route(
     user: AuthenticatedUser,
     file_id: String,
 ) -> Result<(Status, (rocket::http::ContentType, Vec<u8>)), Custom<String>> {
-    let span = span!(Level::INFO, "download_file_route");
+    let span = span!(Level::INFO, "download_file");
     let _enter = span.enter();
 
-    // Usar el procedure para descargar el archivo
     match download_file(&user.user_id, &file_id).await {
         Ok((mime_type, file_content)) => {
             let content_type = rocket::http::ContentType::parse_flexible(&mime_type)
@@ -268,12 +280,10 @@ pub async fn download_file_route(
         }
         Err(e) => {
             let error_msg = e.to_string();
-
-            // Determinar el status code apropiado
             let status = if error_msg.contains("no encontrado") {
                 Status::NotFound
-            } else if error_msg.contains("inválido") {
-                Status::BadRequest
+            } else if error_msg.contains("inválido") || error_msg.contains("No autorizado") {
+                Status::Forbidden
             } else {
                 Status::InternalServerError
             };
@@ -283,25 +293,43 @@ pub async fn download_file_route(
     }
 }
 
-/// Ruta para eliminar un archivo
-///
-/// Endpoint: DELETE /api/files/delete/<file_id>
-///
-/// Headers:
-/// ```
-/// Authorization: Bearer <paseto-token>
-/// ```
-///
-/// Response: JSON indicando éxito o error
+/// Descarga un chunk individual
+#[get("/api/files/download/<file_id>/chunk/<chunk_index>")]
+pub async fn download_chunk_route(
+    user: AuthenticatedUser,
+    file_id: String,
+    chunk_index: i32,
+) -> Result<(Status, Vec<u8>), Custom<String>> {
+    let span = span!(Level::INFO, "download_chunk");
+    let _enter = span.enter();
+
+    match download_chunk(&user.user_id, &file_id, chunk_index).await {
+        Ok((chunk_data, _hash)) => Ok((Status::Ok, chunk_data)),
+        Err(e) => {
+            let error_msg = e.to_string();
+            let status = if error_msg.contains("no encontrado") {
+                Status::NotFound
+            } else {
+                Status::InternalServerError
+            };
+
+            Err(Custom(status, error_msg))
+        }
+    }
+}
+
+// ============================================================================
+// Delete Route
+// ============================================================================
+
 #[delete("/api/files/delete/<file_id>")]
 pub async fn delete_file_route(
     user: AuthenticatedUser,
     file_id: String,
 ) -> Result<Json<DeleteResponse>, Custom<Json<DeleteResponse>>> {
-    let span = span!(Level::INFO, "delete_file_route");
+    let span = span!(Level::INFO, "delete_file");
     let _enter = span.enter();
 
-    // Usar el procedure para eliminar el archivo
     match delete_file(&user.user_id, &file_id).await {
         Ok(_) => {
             info!("Archivo {} eliminado exitosamente", file_id);
@@ -312,8 +340,6 @@ pub async fn delete_file_route(
         }
         Err(e) => {
             let error_msg = e.to_string();
-
-            // Determinar el status code apropiado
             let status = if error_msg.contains("no encontrado") {
                 Status::NotFound
             } else if error_msg.contains("inválido") {
